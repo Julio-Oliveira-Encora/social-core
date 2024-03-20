@@ -67,6 +67,15 @@ class OpenIdConnectAuth(BaseOAuth2):
         self.id_token = None
         super().__init__(*args, **kwargs)
 
+    def oidc_authentication(self):
+        return self.setting("OIDC_AUTH", False)
+
+    def api_url(self):
+        return self.setting("API_URL")
+
+    def audience(self):
+        return self.setting("AUDIENCE")
+
     def authorization_url(self):
         return self.setting(
             "AUTHORIZATION_URL", self.AUTHORIZATION_URL
@@ -196,7 +205,7 @@ class OpenIdConnectAuth(BaseOAuth2):
                 message, encoded_sig = id_token.rsplit(".", 1)
                 decoded_sig = base64url_decode(encoded_sig.encode("utf-8"))
                 if rsakey.Algorithm.verify(
-                    message.encode("utf-8"), rsakey.key, decoded_sig
+                        message.encode("utf-8"), rsakey.key, decoded_sig
                 ):
                     return key
         return None
@@ -237,7 +246,7 @@ class OpenIdConnectAuth(BaseOAuth2):
         # pyjwt does not validate OIDC claims
         # see https://github.com/jpadilla/pyjwt/pull/296
         if "at_hash" in claims and claims["at_hash"] != self.calc_at_hash(
-            access_token, key["alg"]
+                access_token, key["alg"]
         ):
             raise AuthTokenError(self, "Invalid access token")
 
@@ -245,15 +254,49 @@ class OpenIdConnectAuth(BaseOAuth2):
 
         return claims
 
+    def validate_access_token(self, access_token):
+        if not jwt.algorithms.has_crypto:
+            raise AuthTokenError(self, "No crypto support for JWT, please install the cryptography dependency")
+
+        okta_auth_server = self.api_url()
+        jwks_url = f"{okta_auth_server}/v1/keys"
+        try:
+            jwks_client = jwt.PyJWKClient(jwks_url, cache_jwk_set=True, lifespan=360)
+            signing_key = jwks_client.get_signing_key_from_jwt(access_token)
+            data = jwt.decode(
+                access_token,
+                signing_key.key,
+                algorithms=["RS256"],
+                issuer=okta_auth_server,
+                audience=self.audience(),
+                options={
+                    "verify_signature": True,
+                    "verify_exp": True,
+                    "verify_nbf": True,
+                    "verify_iat": True,
+                    "verify_aud": True,
+                    "verify_iss": True,
+                },
+            )
+            return None
+        except jwt.exceptions.PyJWTError as err:
+            raise AuthTokenError(self, str(err))
+
     def request_access_token(self, *args, **kwargs):
         """
         Retrieve the access token. Also, validate the id_token and
         store it (temporarily).
         """
         response = self.get_json(*args, **kwargs)
-        self.id_token = self.validate_and_return_id_token(
-            response["id_token"], response["access_token"]
-        )
+
+        if not self.oidc_authentication():
+            self.id_token = self.validate_and_return_id_token(
+                response["id_token"], response["access_token"]
+            )
+        else:
+            # self.id_token = asyncio.get_event_loop()
+            # self.id_token.run_until_complete(self.validate_access_token(response["access_token"]))
+            self.validate_access_token(response["access_token"])
         return response
 
     def user_data(self, access_token, *args, **kwargs):
