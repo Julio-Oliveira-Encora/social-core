@@ -254,6 +254,10 @@ class OpenIdConnectAuth(BaseOAuth2):
         return claims
 
     def validate_access_token(self, access_token):
+        """
+        Code based on the article:
+        https://medium.com/@chaim_sanders/validating-okta-access-tokens-in-python-with-pyjwt-33b5a66f1341
+        """
         if not jwt.algorithms.has_crypto:
             raise AuthTokenError(self, "No crypto support for JWT, please install the cryptography dependency")
 
@@ -277,7 +281,7 @@ class OpenIdConnectAuth(BaseOAuth2):
                     "verify_iss": True,
                 },
             )
-            return None
+            return data
         except jwt.exceptions.PyJWTError as err:
             raise AuthTokenError(self, str(err))
 
