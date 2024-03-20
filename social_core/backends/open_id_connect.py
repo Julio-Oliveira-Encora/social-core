@@ -62,19 +62,18 @@ class OpenIdConnectAuth(BaseOAuth2):
     USERINFO_URL = ""
     JWKS_URI = ""
     TOKEN_ENDPOINT_AUTH_METHOD = ""
+    OIDC_AUTH = False
+    AUDIENCE = ""
 
     def __init__(self, *args, **kwargs):
         self.id_token = None
         super().__init__(*args, **kwargs)
 
     def oidc_authentication(self):
-        return self.setting("OIDC_AUTH", False)
-
-    def api_url(self):
-        return self.setting("API_URL")
+        return self.setting("OIDC_AUTH", self.OIDC_AUTH)
 
     def audience(self):
-        return self.setting("AUDIENCE")
+        return self.setting(str("AUDIENCE"), self.AUDIENCE)
 
     def authorization_url(self):
         return self.setting(
@@ -258,7 +257,7 @@ class OpenIdConnectAuth(BaseOAuth2):
         if not jwt.algorithms.has_crypto:
             raise AuthTokenError(self, "No crypto support for JWT, please install the cryptography dependency")
 
-        okta_auth_server = self.api_url()
+        okta_auth_server = self.api_url().rstrip("/")
         jwks_url = f"{okta_auth_server}/v1/keys"
         try:
             jwks_client = jwt.PyJWKClient(jwks_url, cache_jwk_set=True, lifespan=360)
@@ -289,14 +288,13 @@ class OpenIdConnectAuth(BaseOAuth2):
         """
         response = self.get_json(*args, **kwargs)
 
-        if not self.oidc_authentication():
+        if self.oidc_authentication():
+            self.validate_access_token(response["access_token"])
+        else:
             self.id_token = self.validate_and_return_id_token(
                 response["id_token"], response["access_token"]
             )
-        else:
-            # self.id_token = asyncio.get_event_loop()
-            # self.id_token.run_until_complete(self.validate_access_token(response["access_token"]))
-            self.validate_access_token(response["access_token"])
+
         return response
 
     def user_data(self, access_token, *args, **kwargs):
