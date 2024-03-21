@@ -281,7 +281,7 @@ class OpenIdConnectAuth(BaseOAuth2):
                     "verify_iss": True,
                 },
             )
-            return data
+            return None
         except jwt.exceptions.PyJWTError as err:
             raise AuthTokenError(self, str(err))
 
