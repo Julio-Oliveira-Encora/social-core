@@ -73,7 +73,7 @@ class OpenIdConnectAuth(BaseOAuth2):
         return self.setting("OIDC_AUTH", self.OIDC_AUTH)
 
     def audience(self):
-        return self.setting(str("AUDIENCE"), self.AUDIENCE)
+        return self.setting("AUDIENCE", self.AUDIENCE)
 
     def authorization_url(self):
         return self.setting(
