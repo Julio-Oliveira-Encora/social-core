@@ -281,7 +281,7 @@ class OpenIdConnectAuth(BaseOAuth2):
                     "verify_iss": True,
                 },
             )
-            return None
+            return data
         except jwt.exceptions.PyJWTError as err:
             raise AuthTokenError(self, str(err))
 
@@ -293,7 +293,7 @@ class OpenIdConnectAuth(BaseOAuth2):
         response = self.get_json(*args, **kwargs)
 
         if self.oidc_authentication():
-            self.validate_access_token(response["access_token"])
+            self.id_token = self.validate_access_token(response["access_token"])
         else:
             self.id_token = self.validate_and_return_id_token(
                 response["id_token"], response["access_token"]
